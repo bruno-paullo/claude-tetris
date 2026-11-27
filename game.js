@@ -18,6 +18,12 @@ const COLORS = [
   '#aed581', // Y - lime (pentominó)
   '#ff6e40', // single 1×1 - recompensa tras un Tetris
   '#9e9e9e', // 3×3 hueca - reto
+  '#ef5350', // power-up: bomba
+  '#fff176', // power-up: rayo
+  '#ab47bc', // power-up: tinte
+  '#5c6bc0', // power-up: gravedad
+  '#b3e5fc', // power-up: congelar
+  '#ffd700', // comodín (solo en el tablero, lo crea el tinte)
 ];
 
 const PIECES = [
@@ -34,6 +40,12 @@ const PIECES = [
   [[0,0,0,0],[10,10,10,10],[0,10,0,0],[0,0,0,0]], // Y (pentominó)
   [[11]],                                     // single 1×1
   [[12,12,12],[12,0,12],[12,12,12]],          // 3×3 hueca
+  [[13]],                                     // power-up: bomba
+  [[14]],                                     // power-up: rayo
+  [[15]],                                     // power-up: tinte
+  [[16]],                                     // power-up: gravedad
+  [[17]],                                     // power-up: congelar
+  [[18]],                                     // comodín (nunca sale como pieza)
 ];
 
 // Piezas especiales: tipos y probabilidad de aparición
@@ -42,6 +54,14 @@ const SINGLE = 11;
 const HOLLOW = 12;
 const PENTO_CHANCE = 0.10;
 const HOLLOW_CHANCE = 0.03;
+
+// Fichas con efecto (power-ups): aparecen cada POWERUP_EVERY líneas
+const BOMB = 13, LIGHTNING = 14, TINT = 15, GRAVITY = 16, FREEZE = 17, WILD = 18;
+const POWERUPS = [BOMB, LIGHTNING, TINT, GRAVITY, FREEZE];
+const ICONS = { [BOMB]: '💣', [LIGHTNING]: '⚡', [TINT]: '🎨', [GRAVITY]: '⬇', [FREEZE]: '❄', [WILD]: '★' };
+const POWERUP_EVERY = 5;
+const FREEZE_MS = 5000;
+const POWERUP_CELL_SCORE = 10;
 
 const LINE_SCORES = [0, 100, 300, 500, 800];
 
@@ -58,7 +78,8 @@ const overlayScore = document.getElementById('overlay-score');
 const restartBtn = document.getElementById('restart-btn');
 const themeToggle = document.getElementById('theme-toggle');
 
-let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId, rewardPending;
+let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId, rewardPending,
+  powerupPending, nextPowerupAt, freezeLeft;
 
 function createBoard() {
   return Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
@@ -73,6 +94,10 @@ function randomPiece() {
   if (rewardPending) {
     rewardPending = false;
     return makePiece(SINGLE);
+  }
+  if (powerupPending) {
+    powerupPending = false;
+    return makePiece(POWERUPS[Math.floor(Math.random() * POWERUPS.length)]);
   }
   const roll = Math.random();
   if (roll < HOLLOW_CHANCE) return makePiece(HOLLOW);
@@ -125,7 +150,9 @@ function merge() {
 function clearLines() {
   let cleared = 0;
   for (let r = ROWS - 1; r >= 0; r--) {
-    if (board[r].every(v => v !== 0)) {
+    const empty = board[r].filter(v => v === 0).length;
+    // fila completa, o le falta una sola celda y contiene un comodín
+    if (empty === 0 || (empty === 1 && board[r].includes(WILD))) {
       board.splice(r, 1);
       board.unshift(new Array(COLS).fill(0));
       cleared++;
@@ -135,6 +162,10 @@ function clearLines() {
   if (cleared === 4) rewardPending = true; // recompensa: pieza single
   if (cleared) {
     lines += cleared;
+    while (lines >= nextPowerupAt) {
+      powerupPending = true;
+      nextPowerupAt += POWERUP_EVERY;
+    }
     score += (LINE_SCORES[cleared] || 0) * level;
     level = Math.floor(lines / 10) + 1;
     dropInterval = Math.max(100, 1000 - (level - 1) * 90);
@@ -165,8 +196,69 @@ function softDrop() {
   }
 }
 
+// Vacía las celdas indicadas y devuelve cuántos bloques destruyó
+function destroyCells(cells) {
+  let destroyed = 0;
+  for (const [r, c] of cells) {
+    if (r < 0 || r >= ROWS || c < 0 || c >= COLS) continue;
+    if (board[r][c]) { board[r][c] = 0; destroyed++; }
+  }
+  return destroyed;
+}
+
+function applyPowerup(type, x, y) {
+  let destroyed = 0;
+  switch (type) {
+    case BOMB: {
+      const cells = [];
+      for (let dr = -1; dr <= 1; dr++)
+        for (let dc = -1; dc <= 1; dc++) cells.push([y + dr, x + dc]);
+      destroyed = destroyCells(cells);
+      break;
+    }
+    case LIGHTNING: {
+      const cells = [];
+      for (let c = 0; c < COLS; c++) cells.push([y, c]);
+      for (let r = 0; r < ROWS; r++) if (r !== y) cells.push([r, x]);
+      destroyed = destroyCells(cells);
+      break;
+    }
+    case TINT: {
+      let target = y + 1 < ROWS ? board[y + 1][x] : 0;
+      if (!target || target === WILD) {
+        // color más frecuente del tablero (sin contar comodines)
+        const counts = {};
+        for (const row of board)
+          for (const v of row)
+            if (v && v !== WILD) counts[v] = (counts[v] || 0) + 1;
+        target = Number(Object.keys(counts).sort((a, b) => counts[b] - counts[a])[0]) || 0;
+      }
+      if (target)
+        for (const row of board)
+          for (let c = 0; c < COLS; c++)
+            if (row[c] === target) row[c] = WILD;
+      break;
+    }
+    case GRAVITY:
+      for (let c = 0; c < COLS; c++) {
+        const col = [];
+        for (let r = ROWS - 1; r >= 0; r--) if (board[r][c]) col.push(board[r][c]);
+        for (let r = ROWS - 1, i = 0; r >= 0; r--, i++) board[r][c] = col[i] || 0;
+      }
+      break;
+    case FREEZE:
+      freezeLeft = FREEZE_MS;
+      break;
+  }
+  if (destroyed) {
+    score += destroyed * POWERUP_CELL_SCORE * level;
+    updateHUD();
+  }
+}
+
 function lockPiece() {
-  merge();
+  if (POWERUPS.includes(current.type)) applyPowerup(current.type, current.x, current.y);
+  else merge();
   clearLines();
   spawn();
 }
@@ -195,6 +287,14 @@ function drawBlock(context, x, y, colorIndex, size, alpha) {
   // highlight
   context.fillStyle = 'rgba(255,255,255,0.12)';
   context.fillRect(x * size + 1, y * size + 1, size - 2, 4);
+  const icon = ICONS[colorIndex];
+  if (icon) {
+    context.fillStyle = '#1a1a25';
+    context.font = `${Math.round(size * 0.6)}px sans-serif`;
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+    context.fillText(icon, x * size + size / 2, y * size + size / 2 + 1);
+  }
   context.globalAlpha = 1;
 }
 
@@ -235,6 +335,17 @@ function draw() {
   for (let r = 0; r < current.shape.length; r++)
     for (let c = 0; c < current.shape[r].length; c++)
       drawBlock(ctx, current.x + c, current.y + r, current.shape[r][c], BLOCK);
+
+  // congelar: velo celeste y cuenta atrás
+  if (freezeLeft > 0) {
+    ctx.fillStyle = 'rgba(179, 229, 252, 0.18)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#4fc3f7';
+    ctx.font = 'bold 20px monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText(`❄ ${Math.ceil(freezeLeft / 1000)}s`, canvas.width / 2, 8);
+  }
 }
 
 function drawNext() {
@@ -273,13 +384,17 @@ function togglePause() {
 function loop(ts) {
   const dt = ts - lastTime;
   lastTime = ts;
-  dropAccum += dt;
-  if (dropAccum >= dropInterval) {
-    dropAccum = 0;
-    if (!collide(current.shape, current.x, current.y + 1)) {
-      current.y++;
-    } else {
-      lockPiece();
+  if (freezeLeft > 0) {
+    freezeLeft = Math.max(0, freezeLeft - dt); // caída en pausa (power-up congelar)
+  } else {
+    dropAccum += dt;
+    if (dropAccum >= dropInterval) {
+      dropAccum = 0;
+      if (!collide(current.shape, current.x, current.y + 1)) {
+        current.y++;
+      } else {
+        lockPiece();
+      }
     }
   }
   draw();
@@ -295,6 +410,9 @@ function init() {
   paused = false;
   gameOver = false;
   rewardPending = false;
+  powerupPending = false;
+  nextPowerupAt = POWERUP_EVERY;
+  freezeLeft = 0;
   dropInterval = 1000;
   dropAccum = 0;
   lastTime = performance.now();

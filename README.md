@@ -39,6 +39,13 @@ Es una versión jugable del Tetris clásico con todas las mecánicas que esperar
   - Pentominós **+**, **U** e **Y** (5 bloques, ~10 % de las piezas).
   - **3×3 hueca** como reto (~3 %).
   - **Single 1×1** como recompensa: siempre es la siguiente pieza tras hacer un Tetris (4 líneas).
+- **Fichas con efecto** (power-ups): cada **5 líneas** aparece una ficha 1×1 con icono. Se mueve y se suelta como cualquier pieza; al fijarse aplica su efecto en ese punto y desaparece:
+  - 💣 **Bomba**: destruye el área 3×3 alrededor.
+  - ⚡ **Rayo**: limpia su fila y su columna completas.
+  - 🎨 **Tinte**: convierte todos los bloques del color que tiene debajo (o del más abundante) en **comodines** ★. Una fila a la que solo le falte una celda se limpia igualmente si contiene un comodín.
+  - ⬇ **Gravedad**: compacta el tablero haciendo caer todos los bloques y eliminando los huecos.
+  - ❄ **Congelar**: detiene la caída automática durante 5 segundos (puedes seguir moviendo y soltando la pieza).
+  - Bomba y rayo suman 10 puntos × nivel por cada bloque destruido.
 - **Rotación** con _wall kicks_ básicos (pequeños desplazamientos para que la pieza pueda rotar pegada a la pared).
 - **Soft drop** (bajada acelerada) y **hard drop** (caída instantánea).
 - **Pieza fantasma** (_ghost piece_): muestra dónde aterrizará la pieza actual.
@@ -112,7 +119,7 @@ Aporta el aspecto visual con estética _dark / retro arcade_: fondo oscuro, tipo
 
 Contiene toda la lógica del juego. A grandes rasgos:
 
-- **Modelo del tablero**: una matriz `ROWS × COLS` donde cada celda guarda `0` (vacía) o un índice de color (1–12) que identifica la pieza.
+- **Modelo del tablero**: una matriz `ROWS × COLS` donde cada celda guarda `0` (vacía) o un índice de color (1–18) que identifica la pieza.
 - **Piezas**: definidas como matrices cuadradas. Para rotar se calcula la transposición + reverso de filas (`rotateCW`).
 - **Detección de colisiones** (`collide`): comprueba que ninguna celda de la pieza salga del tablero ni se solape con bloques ya fijados.
 - **Wall kicks** (`tryRotate`): si la rotación choca, intenta desplazar la pieza ±1 y ±2 columnas antes de descartar el giro.
@@ -177,7 +184,7 @@ Algunos parámetros fáciles de tunear en `game.js`:
 | `COLS`         | Columnas del tablero                     | `10`                  |
 | `ROWS`         | Filas del tablero                        | `20`                  |
 | `BLOCK`        | Tamaño en píxeles de cada celda          | `30`                  |
-| `COLORS`       | Paleta de colores por tipo de pieza      | 12 colores            |
+| `COLORS`       | Paleta de colores por tipo de pieza      | 18 colores            |
 | `LINE_SCORES`  | Puntos por 1, 2, 3 o 4 líneas eliminadas | `[0,100,300,500,800]` |
 | `dropInterval` | Velocidad inicial de caída en ms         | `1000`                |
 
