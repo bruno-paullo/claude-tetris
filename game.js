@@ -13,6 +13,11 @@ const COLORS = [
   '#e57373', // Z - red
   '#90caf9', // J - pale blue
   '#ffb74d', // L - orange
+  '#f06292', // + - pink (pentominó)
+  '#4db6ac', // U - teal (pentominó)
+  '#aed581', // Y - lime (pentominó)
+  '#ff6e40', // single 1×1 - recompensa tras un Tetris
+  '#9e9e9e', // 3×3 hueca - reto
 ];
 
 const PIECES = [
@@ -24,7 +29,19 @@ const PIECES = [
   [[5,5,0],[0,5,5],[0,0,0]],                  // Z
   [[6,0,0],[6,6,6],[0,0,0]],                  // J
   [[0,0,7],[7,7,7],[0,0,0]],                  // L
+  [[0,8,0],[8,8,8],[0,8,0]],                  // + (pentominó)
+  [[9,0,9],[9,9,9],[0,0,0]],                  // U (pentominó)
+  [[0,0,0,0],[10,10,10,10],[0,10,0,0],[0,0,0,0]], // Y (pentominó)
+  [[11]],                                     // single 1×1
+  [[12,12,12],[12,0,12],[12,12,12]],          // 3×3 hueca
 ];
+
+// Piezas especiales: tipos y probabilidad de aparición
+const PENTOMINOES = [8, 9, 10];
+const SINGLE = 11;
+const HOLLOW = 12;
+const PENTO_CHANCE = 0.10;
+const HOLLOW_CHANCE = 0.03;
 
 const LINE_SCORES = [0, 100, 300, 500, 800];
 
@@ -41,16 +58,27 @@ const overlayScore = document.getElementById('overlay-score');
 const restartBtn = document.getElementById('restart-btn');
 const themeToggle = document.getElementById('theme-toggle');
 
-let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
+let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId, rewardPending;
 
 function createBoard() {
   return Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
 }
 
-function randomPiece() {
-  const type = Math.floor(Math.random() * 7) + 1;
+function makePiece(type) {
   const shape = PIECES[type].map(row => [...row]);
   return { type, shape, x: Math.floor(COLS / 2) - Math.floor(shape[0].length / 2), y: 0 };
+}
+
+function randomPiece() {
+  if (rewardPending) {
+    rewardPending = false;
+    return makePiece(SINGLE);
+  }
+  const roll = Math.random();
+  if (roll < HOLLOW_CHANCE) return makePiece(HOLLOW);
+  if (roll < HOLLOW_CHANCE + PENTO_CHANCE)
+    return makePiece(PENTOMINOES[Math.floor(Math.random() * PENTOMINOES.length)]);
+  return makePiece(Math.floor(Math.random() * 7) + 1);
 }
 
 function collide(shape, ox, oy) {
@@ -104,6 +132,7 @@ function clearLines() {
       r++;
     }
   }
+  if (cleared === 4) rewardPending = true; // recompensa: pieza single
   if (cleared) {
     lines += cleared;
     score += (LINE_SCORES[cleared] || 0) * level;
@@ -265,6 +294,7 @@ function init() {
   level = 1;
   paused = false;
   gameOver = false;
+  rewardPending = false;
   dropInterval = 1000;
   dropAccum = 0;
   lastTime = performance.now();
