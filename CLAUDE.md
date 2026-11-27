@@ -23,7 +23,8 @@ Three files: `index.html` (DOM: `#board` canvas, side panel with `#score`/`#line
 
 Key conventions in `game.js`:
 
-- **Cell values double as piece type and color index.** `PIECES[t]` matrices are filled with the value `t`, and `COLORS[t]` is its color; index 0 is empty/null. `board` stores these same values once a piece is merged. Adding a piece type means extending both arrays and the `* 7` in `randomPiece()`.
+- **Cell values double as piece type and color index.** `PIECES[t]` matrices are filled with the value `t`, and `COLORS[t]` is its color; index 0 is empty/null. `board` stores these same values once a piece is merged. Types 1–7 are the standard tetrominoes; 8–10 are pentominoes (+, U, Y), 11 is the 1×1 single, 12 the hollow 3×3. Adding a piece type means extending both arrays and the selection logic in `randomPiece()`.
+- **Piece selection:** `randomPiece()` returns the single if `rewardPending` (set by `clearLines()` on a 4-line clear, reset in `init()`); otherwise it rolls `HOLLOW_CHANCE` / `PENTO_CHANCE` (picking from `PENTOMINOES`) before falling back to a uniform standard piece. `makePiece(type)` builds a piece at the spawn position. All matrices must stay square and ≤4×4 for `drawNext()`.
 - **Pieces are square matrices** rotated by `rotateCW` (transpose + reverse); `tryRotate` applies simple horizontal wall kicks `[0, -1, 1, -2, 2]` (not SRS).
 - **`collide(shape, x, y)` is the single source of truth** for movement, rotation, ghost projection (`ghostY`), drops, and game-over detection in `spawn()`. Cells with `y < 0` are allowed (above the board).
 - **Lock pipeline:** `lockPiece()` → `merge()` → `clearLines()` (updates lines/score/level/`dropInterval`) → `spawn()` (promotes `next`, detects game over, redraws next preview).
