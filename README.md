@@ -157,7 +157,7 @@ Cuando una pieza recién generada ya colisiona al aparecer (`spawn`), se dispara
 ```
 03-tetris/
 ├── index.html      # Estructura del DOM y canvas
-├── style.css       # Estilos del juego (dark theme)
+├── style.css       # Estilos del juego (temas oscuro y claro mediante variables CSS)
 ├── game.js         # Toda la lógica del Tetris (~300 líneas)
 └── README.md
 ```

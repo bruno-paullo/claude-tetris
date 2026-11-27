@@ -4,9 +4,19 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Tetris</title>
+  <script>
+    // Aplica el tema guardado antes de pintar para evitar parpadeo (por defecto: oscuro)
+    document.documentElement.dataset.theme =
+      localStorage.getItem('theme') === 'light' ? 'light' : 'dark';
+  </script>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+  <label class="theme-switch" for="theme-toggle">
+    <span>Modo claro</span>
+    <input type="checkbox" id="theme-toggle" />
+    <span class="switch-track"></span>
+  </label>
   <h1 class="game-title">TETRIS</h1>
   <div class="wrapper">
     <div class="game-container">
